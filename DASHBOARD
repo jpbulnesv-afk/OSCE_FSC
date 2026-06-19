@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ECOE / EPOE · Tablero de resultados</title>
+<style>
+  /* ---------------------------------------------------------------------
+     Identidad visual: instrumento clínico. Fondo pizarra fría, tipografía
+     de datos en mono para puntajes (legibilidad de cifras), Fraunces para
+     los títulos (carácter académico). Acento ámbar = alerta; verde sobrio
+     = aprobado. Sin gradientes decorativos: cada color significa algo.
+  --------------------------------------------------------------------- */
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+  :root{
+    --bg:#0f1623; --panel:#161f30; --panel2:#1d2840; --line:#2a3650;
+    --ink:#e8edf6; --muted:#8a99b5; --faint:#5b6885;
+    --ok:#3fae84; --ok-bg:#16312a; --warn:#e0a23a; --warn-bg:#3a2e16;
+    --crit:#e06a5a; --crit-bg:#3a1f1c; --accent:#6ea8d8;
+    --radius:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif}
+  body{min-height:100vh}
+  h1,h2,h3{font-family:'Fraunces',Georgia,serif;font-weight:600;letter-spacing:-.01em;margin:0}
+  .mono{font-family:'IBM Plex Mono',monospace}
+
+  /* ---- Login ---- */
+  .login-wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
+  .login{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);padding:32px 28px}
+  .eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:600}
+  .login h1{font-size:25px;margin:10px 0 4px}
+  .login p{color:var(--muted);font-size:13px;margin:0 0 22px;line-height:1.5}
+  label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;font-weight:500}
+  input,select{width:100%;padding:11px 12px;background:var(--bg);border:1px solid var(--line);
+    border-radius:8px;color:var(--ink);font-size:14px;font-family:inherit}
+  input:focus,select:focus{outline:none;border-color:var(--accent)}
+  button{width:100%;margin-top:20px;padding:12px;background:var(--accent);color:#0c121d;border:none;
+    border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit}
+  button:hover{filter:brightness(1.07)}
+  button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);margin-top:10px}
+  .err{color:var(--crit);font-size:13px;margin-top:14px;min-height:18px}
+
+  /* ---- App shell ---- */
+  .app{display:none;max-width:1240px;margin:0 auto;padding:20px 22px 60px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:22px;flex-wrap:wrap}
+  .topbar .title{display:flex;flex-direction:column;gap:2px}
+  .topbar h1{font-size:21px}
+  .topbar .sub{font-size:12px;color:var(--muted)}
+  .topbar .right{display:flex;align-items:center;gap:12px}
+  .pill{font-size:11px;padding:4px 10px;border-radius:99px;border:1px solid var(--line);
+    color:var(--muted);letter-spacing:.04em}
+  .dot{width:7px;height:7px;border-radius:99px;background:var(--ok);display:inline-block;margin-right:6px;
+    animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  /* ---- Cards / KPIs ---- */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:22px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+  .kpi .n{font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:600;line-height:1}
+  .kpi .l{font-size:12px;color:var(--muted);margin-top:7px}
+  .kpi.ok .n{color:var(--ok)} .kpi.warn .n{color:var(--warn)} .kpi.crit .n{color:var(--crit)}
+
+  /* ---- Sections ---- */
+  .section{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    margin-bottom:20px;overflow:hidden}
+  .section > h2{font-size:15px;padding:15px 18px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-between}
+  .section .body{padding:6px 0}
+  .count{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--faint);font-weight:500}
+
+  /* ---- Tables ---- */
+  .scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;
+    position:sticky;top:0;background:var(--panel2)}
+  td.num{font-family:'IBM Plex Mono',monospace;text-align:right}
+  tr:hover td{background:var(--panel2)}
+  .tag{font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600;font-family:'IBM Plex Mono',monospace}
+  .t-ok{background:var(--ok-bg);color:var(--ok)} .t-no{background:var(--crit-bg);color:var(--crit)}
+  .cell-low{color:var(--warn);font-weight:600}
+  .a-crit{color:var(--crit)} .a-warn{color:var(--warn)} .a-id{color:var(--accent)}
+
+  .empty{padding:30px 18px;text-align:center;color:var(--faint);font-size:13px}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+  .controls .field{flex:1;min-width:140px}
+  .controls label{margin-top:0}
+  .hidden{display:none!important}
+
+  /* ---- Student detail ---- */
+  .stu-head{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;
+    padding:18px;border-bottom:1px solid var(--line)}
+  .stu-head .b{font-size:12px;color:var(--muted)} .stu-head .v{font-size:18px;margin-top:4px}
+  .st-row{display:grid;grid-template-columns:46px 1fr auto;gap:12px;align-items:center;
+    padding:12px 18px;border-bottom:1px solid var(--line)}
+  .st-row .en{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accent)}
+  .st-row .fb{font-size:12px;color:var(--muted);margin-top:3px;white-space:normal}
+  .st-row .sc{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600}
+
+  @media (max-width:560px){
+    .topbar h1{font-size:18px} .kpi .n{font-size:24px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login">
+    <div class="eyebrow">UNITEC · Ciencias de la Salud</div>
+    <h1>Tablero ECOE / EPOE</h1>
+    <p>Resultados del circuito clínico en tiempo real. Ingrese la contraseña de su rol para continuar.</p>
+
+    <label for="clave">Contraseña</label>
+    <input type="password" id="clave" placeholder="••••••••" autocomplete="off" />
+
+    <div id="docExtra" class="hidden">
+      <label for="selEst">Estación que evalúa</label>
+      <select id="selEst"></select>
+      <label for="selCir">Circuito</label>
+      <select id="selCir"><option>A</option><option>B</option><option>C</option></select>
+    </div>
+
+    <div id="estExtra" class="hidden">
+      <label for="cuenta">Número de cuenta</label>
+      <input type="text" id="cuenta" placeholder="Ej. 21811234" autocomplete="off" />
+    </div>
+
+    <button id="btnEntrar">Entrar</button>
+    <div class="err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div class="app" id="app">
+  <div class="topbar">
+    <div class="title">
+      <h1 id="appTitle">Panel</h1>
+      <span class="sub" id="appSub"></span>
+    </div>
+    <div class="right">
+      <span class="pill"><span class="dot"></span><span id="liveTxt">en vivo</span></span>
+      <button class="ghost" style="width:auto;margin:0;padding:7px 14px" id="btnSalir">Salir</button>
+    </div>
+  </div>
+  <div id="view"></div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN — pegá aquí la URL /exec de tu Web App (Fase 4 backend)
+   ============================================================ */
+const API_URL = https://script.google.com/macros/s/AKfycbzOCzW5b6fuA5bzQqfWIsrr-ZQHAL_l9XbILn22kpz1EKhkaJb6tsLb3mzY5rHlSopa/exec;
+
+/* Estaciones evaluadas (para el selector de docente) */
+const ESTACIONES_DOCENTE = [1,2,3,4,5,7,8];
+const REFRESH_MS = 60000;          // refresco automático: 60 s
+
+let estado = { clave:'', rol:'', estacion:'', circuito:'', cuenta:'' , timer:null };
+
+/* ---- Elementos ---- */
+const $ = s => document.querySelector(s);
+const loginWrap=$('#loginWrap'), app=$('#app'), view=$('#view');
+
+/* Selector de estación para docente */
+(function fillEst(){
+  const sel=$('#selEst');
+  ESTACIONES_DOCENTE.forEach(n=>{
+    const o=document.createElement('option'); o.value=n; o.textContent='Estación '+n; sel.appendChild(o);
+  });
+})();
+
+/* El campo extra (estación/cuenta) aparece según la contraseña tecleada.
+   Como no sabemos el rol hasta validar, mostramos ambos extras solo tras
+   un primer intento fallido-por-falta-de-dato; más simple: detectar al vuelo
+   pidiendo y dejando que el backend valide. Mostramos extras si el usuario
+   los necesita: intentamos primero como coordinador; si el backend dice rol
+   docente/estudiante sin datos, pedimos el dato. Para fluidez, mostramos
+   pistas con un toggle por longitud no es fiable, así que: probamos entrar,
+   y si el backend indica que falta estación o cuenta, revelamos el campo. */
+
+$('#btnEntrar').addEventListener('click', intentarEntrar);
+$('#clave').addEventListener('keydown', e=>{ if(e.key==='Enter') intentarEntrar(); });
+$('#cuenta')?.addEventListener('keydown', e=>{ if(e.key==='Enter') intentarEntrar(); });
+$('#btnSalir').addEventListener('click', salir);
+
+async function intentarEntrar(){
+  const err=$('#loginErr'); err.textContent='';
+  estado.clave=$('#clave').value.trim();
+  estado.estacion=$('#selEst').value;
+  estado.circuito=$('#selCir').value;
+  estado.cuenta=($('#cuenta')?.value||'').trim();
+  if(!estado.clave){ err.textContent='Ingrese la contraseña.'; return; }
+  if(API_URL.indexOf('PEGAR_AQUI')===0){ err.textContent='Falta configurar API_URL en el código.'; return; }
+
+  err.textContent='Verificando…';
+  const r = await consultar();
+  if(!r || !r.ok){ err.textContent=(r&&r.error)||'No se pudo conectar.'; return; }
+
+  estado.rol=r.rol;
+  // Si es docente o estudiante y aún no mostramos sus campos, revelarlos.
+  if(estado.rol==='docente' && $('#docExtra').classList.contains('hidden')){
+    $('#docExtra').classList.remove('hidden');
+    err.textContent='Seleccione su estación y circuito, luego Entrar.'; return;
+  }
+  if(estado.rol==='estudiante' && $('#estExtra').classList.contains('hidden')){
+    $('#estExtra').classList.remove('hidden');
+    err.textContent='Ingrese su número de cuenta, luego Entrar.'; return;
+  }
+  abrirApp(r);
+}
+
+/* Llamada al backend (GET con querystring). */
+async function consultar(){
+  const p=new URLSearchParams({clave:estado.clave});
+  if(estado.rol==='docente'||$('#docExtra').classList.contains('hidden')===false){
+    p.set('estacion',estado.estacion); p.set('circuito',estado.circuito);
+  }
+  if(estado.rol==='estudiante'||$('#estExtra').classList.contains('hidden')===false){
+    p.set('cuenta',estado.cuenta);
+  }
+  try{
+    const res=await fetch(API_URL+'?'+p.toString());
+    return await res.json();
+  }catch(e){ return {ok:false,error:'Error de red. Revise la URL del backend.'}; }
+}
+
+function abrirApp(r){
+  loginWrap.style.display='none'; app.style.display='block';
+  render(r);
+  estado.timer=setInterval(async()=>{ const x=await consultar(); if(x&&x.ok) render(x); }, REFRESH_MS);
+}
+
+function salir(){
+  clearInterval(estado.timer); estado={clave:'',rol:'',estacion:'',circuito:'',cuenta:'',timer:null};
+  app.style.display='none'; loginWrap.style.display='grid';
+  $('#clave').value=''; $('#loginErr').textContent='';
+  $('#docExtra').classList.add('hidden'); $('#estExtra').classList.add('hidden');
+}
+
+/* ============================================================
+   RENDER por rol
+   ============================================================ */
+function render(r){
+  if(r.rol==='coordinador') return renderCoord(r.data);
+  if(r.rol==='docente')     return renderDocente(r.data);
+  if(r.rol==='estudiante')  return renderEstudiante(r.data);
+}
+
+function setHead(t,s){ $('#appTitle').textContent=t; $('#appSub').textContent=s; }
+function esc(v){ return (v==null?'':String(v)).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+
+/* ---------------- COORDINADOR ---------------- */
+function renderCoord(d){
+  setHead('Panel del coordinador','Vista completa · actualizado '+hora(d.actualizado));
+  const R=d.resumen;
+  const kpis=[
+    ['',R.estudiantes,'Estudiantes'],
+    ['ok',R.aprobados,'Aprobados'],
+    ['crit',R.reprobados,'Reprobados'],
+    ['',R.completosTotales,'Completos (10/10)'],
+    ['warn',R.conAlertas,'Con alertas'],
+  ].map(k=>`<div class="kpi ${k[0]}"><div class="n">${k[1]}</div><div class="l">${k[2]}</div></div>`).join('');
+
+  view.innerHTML=`
+    <div class="kpis">${kpis}</div>
+    ${seccionAlertas(d.alertas)}
+    <div class="section">
+      <h2>Consolidado por estudiante <span class="count">${d.consolidado.filas.length} filas</span></h2>
+      <div class="body scroll">${tablaConsolidado(d.consolidado)}</div>
+    </div>`;
+}
+
+function tablaConsolidado(c){
+  if(!c.filas.length) return `<div class="empty">Aún no hay respuestas registradas.</div>`;
+  const h=c.head;
+  const iAprob=h.indexOf('Aprobado');
+  const thead='<tr>'+h.map(x=>`<th>${esc(x)}</th>`).join('')+'</tr>';
+  const rows=c.filas.map(f=>{
+    const tds=f.map((v,i)=>{
+      if(h[i]==='Aprobado'){
+        const cls=v==='SÍ'?'t-ok':'t-no'; return `<td><span class="tag ${cls}">${esc(v)}</span></td>`;
+      }
+      const head=h[i]||'';
+      const isEst=/^E\d+ \/4$/.test(head);
+      if(isEst && v!=='' && Number(v)<2.6) return `<td class="num cell-low">${esc(v)}</td>`;
+      const numeric=isEst||['Total /40','%','Completadas /10','Alertas'].includes(head);
+      return `<td class="${numeric?'num':''}">${esc(v)}</td>`;
+    }).join('');
+    return '<tr>'+tds+'</tr>';
+  }).join('');
+  return `<table><thead>${thead}</thead><tbody>${rows}</tbody></table>`;
+}
+
+function seccionAlertas(a){
+  const real=a.filas.filter(f=>String(f[0]).indexOf('sin alertas')===-1);
+  const body = real.length? `<div class="scroll"><table><thead><tr>${
+      a.head.map(x=>`<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${
+      real.map(f=>'<tr>'+f.map((v,i)=>{
+        let cls=''; if(i===0){ const s=String(v); cls=s.indexOf('CRÍTICA')>-1?'a-crit':s.indexOf('IDENTIDAD')>-1?'a-id':'a-warn'; }
+        return `<td class="${cls}">${esc(v)}</td>`;}).join('')+'</tr>').join('')
+    }</tbody></table></div>`
+    : `<div class="empty">Sin alertas activas. Todo en orden.</div>`;
+  return `<div class="section"><h2>Alertas <span class="count">${real.length}</span></h2><div class="body">${body}</div></div>`;
+}
+
+/* ---------------- DOCENTE ---------------- */
+function renderDocente(d){
+  setHead('Estación '+d.estacion+' · Circuito '+d.circuito, d.total+' evaluaciones registradas · '+hora(d.actualizado));
+  if(!d.filas.length){ view.innerHTML=`<div class="section"><div class="empty">Aún no hay evaluaciones enviadas para esta estación y circuito.</div></div>`; return; }
+  const h=d.head;
+  const keep=['Marca temporal','N° de cuenta','Nombre','Puntaje /4','Acción crítica','No completado','Aspectos de mejora'];
+  const idx=keep.map(k=>h.indexOf(k)).filter(i=>i>=0);
+  const thead='<tr>'+idx.map(i=>`<th>${esc(h[i])}</th>`).join('')+'</tr>';
+  const rows=d.filas.map(f=>'<tr>'+idx.map(i=>{
+    const head=h[i], v=f[i];
+    if(head==='Puntaje /4'){ const low=Number(v)<2.6; return `<td class="num ${low?'cell-low':''}">${esc(v)}</td>`; }
+    if(head==='Acción crítica' && v==='SÍ') return `<td><span class="tag t-no">SÍ</span></td>`;
+    if(head==='No completado' && v==='SÍ') return `<td><span class="tag t-no">SÍ</span></td>`;
+    return `<td>${esc(v)}</td>`;
+  }).join('')+'</tr>').join('');
+  view.innerHTML=`<div class="section"><h2>Evaluaciones de la estación</h2>
+    <div class="body scroll"><table><thead>${thead}</thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+/* ---------------- ESTUDIANTE ---------------- */
+function renderEstudiante(d){
+  setHead('Mis resultados','Circuito '+(d.encontrado?d.resumen['Circuito']:'—')+' · '+hora(d.actualizado));
+  if(!d.encontrado){ view.innerHTML=`<div class="section"><div class="empty">${esc(d.mensaje)}</div></div>`; return; }
+  const r=d.resumen;
+  const aprob=r['Aprobado']==='SÍ';
+  const head=`<div class="stu-head">
+      <div><div class="b">Nombre</div><div class="v">${esc(r['Nombre'])}</div></div>
+      <div><div class="b">Cuenta</div><div class="v mono">${esc(r['N° de cuenta'])}</div></div>
+      <div><div class="b">Total</div><div class="v mono">${esc(r['Total /40'])} / 40</div></div>
+      <div><div class="b">Porcentaje</div><div class="v mono">${esc(r['%'])}%</div></div>
+      <div><div class="b">Completadas</div><div class="v mono">${esc(r['Completadas /10'])} / 10</div></div>
+      <div><div class="b">Resultado</div><div class="v"><span class="tag ${aprob?'t-ok':'t-no'}">${aprob?'APROBADO':'NO APROBADO'}</span></div></div>
+    </div>`;
+  const filas=d.detalle.map(s=>{
+    const low=Number(s.puntaje)<2.6;
+    const fb=[s.fortalezas?('Fortalezas: '+s.fortalezas):'', s.mejoras?('Mejora: '+s.mejoras):'']
+      .filter(Boolean).join(' · ');
+    const flags=[s.critica?'<span class="tag t-no">crítica</span>':'', s.noComp?'<span class="tag t-no">incompleta</span>':''].join(' ');
+    return `<div class="st-row">
+      <div class="en">E${esc(s.estacion)}</div>
+      <div><div>${flags||'<span style="color:var(--muted)">—</span>'}</div>${fb?`<div class="fb">${esc(fb)}</div>`:''}</div>
+      <div class="sc ${low?'cell-low':''}">${esc(s.puntaje)}<span style="color:var(--faint);font-size:12px">/4</span></div>
+    </div>`;
+  }).join('');
+  view.innerHTML=`<div class="section">${head}${filas}</div>
+    <p style="color:var(--faint);font-size:12px;text-align:center">El detalle muestra el puntaje por estación, fortalezas y aspectos de mejora registrados por el evaluador.</p>`;
+}
+
+/* ---- util ---- */
+function hora(iso){ try{ return new Date(iso).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+</script>
+</body>
+</html>
